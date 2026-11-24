@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="生産数を入れると、必要な内箱数・外箱数がすぐ分かる梱包計算ツール">
+<meta name="theme-color" content="#0b6b5e">
+<!-- ホーム画面に追加したときの名前とアイコン（Museではなく、このツールとして登録される） -->
+<meta name="application-name" content="梱包計算">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="梱包計算">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>こんぽうけいさんツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+<style>
+:root{
+--bg:#f2f4f3; --surface:#ffffff; --surface2:#eef2f1; --ink:#17201e; --muted:#6b7a76; --line:#dde4e1;
+--teal:#0b6b5e; --teal-bg:#e6f3f0; --navy:#1b2a4a; --navy-bg:#e8ecf3; --amber:#d97706;
+--radius:14px;
+}
+@media (prefers-color-scheme: dark){
+:root{ --bg:#121816; --surface:#1c2422; --surface2:#242e2b; --ink:#eef4f2; --muted:#9aaca6; --line:#2e3a37; --teal:#2ec4a6; --teal-bg:#14332e; --navy-bg:#1e2a44;}
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{overflow-x:hidden;font-family:"Noto Sans JP",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input{font:inherit}
+button{min-height:44px}
+.wrap{max-width:560px;margin:0 auto;padding:12px 14px 20px;display:flex;flex-direction:column;gap:10px;min-height:100dvh}
+.top{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 0}
+.top h1{font-size:18px;font-weight:900;letter-spacing:.02em;margin:0}
+.top span{font-size:11px;font-weight:700;color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:6px 9px;border-radius:999px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+.label{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.label b{color:var(--ink);letter-spacing:0;font-size:11px}
+/* quantity */
+.qty-row{display:flex;gap:8px;align-items:stretch;min-width:0}
+.qty-input{min-width:0}
+.qty-input{flex:1;display:flex;align-items:center;background:var(--surface2);border-radius:10px;padding:0 12px;border:2px solid transparent}
+.qty-input:focus-within{border-color:var(--teal);background:var(--surface)}
+.qty-input input{flex:1;min-width:0;border:0;background:transparent;font-size:34px;font-weight:900;line-height:1;padding:10px 0;outline:none;color:var(--ink)}
+.qty-input span{font-size:16px;font-weight:800;color:var(--muted)}
+.clear-btn{width:48px;border:1px solid var(--line);background:var(--surface);border-radius:10px;font-size:20px;cursor:pointer;color:var(--muted)}
+.quick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.quick button{flex:1;min-height:36px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:13px;cursor:pointer;padding:0 6px;white-space:nowrap}
+.quick button:active{background:var(--teal-bg)}
+/* chips */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{flex:1;min-width:64px;min-height:48px;border-radius:10px;border:2px solid var(--line);background:var(--surface);cursor:pointer;padding:6px 4px;text-align:center}
+.chip strong{display:block;font-size:20px;line-height:1;font-weight:900}
+.chip small{display:block;font-size:10px;color:var(--muted);font-weight:700;margin-top:3px}
+.chip.active{border-color:var(--teal);background:var(--teal-bg)}
+.chip.active small{color:var(--teal)}
+.chip-outer.active{border-color:var(--navy);background:var(--navy-bg)}
+.chip-outer.active small{color:var(--navy)}
+@media(prefers-color-scheme:dark){.chip-outer.active small{color:#8aa0d0}}
+.custom-row{display:flex;gap:6px;margin-top:6px;align-items:center;min-width:0}
+.custom-row input{min-width:0;width:100%}
+.custom-row input{flex:1;height:38px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:var(--surface);font-weight:700}
+.custom-row span{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+/* relation */
+.relation{text-align:center;font-size:12.5px;font-weight:700;color:var(--muted);padding:2px}
+.relation b{color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:4px 8px;border-radius:999px;display:inline-block}
+/* results - the hero, no scroll needed */
+.results{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.result{border-radius:14px;padding:16px 14px 14px;color:#fff;position:relative;overflow:hidden}
+.result.inner{background:#0b6b5e}
+.result.outer{background:#1b2a4a}
+.result .r-label{font-size:14px;font-weight:900;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.result .r-label em{font-style:normal;background:rgba(255,255,255,.22);padding:3px 8px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap}
+.result .r-num{font-size:64px;line-height:1;font-weight:900;letter-spacing:-.02em;margin:10px 0 4px;font-variant-numeric:tabular-nums;text-shadow:0 2px 10px rgba(0,0,0,.18)}
+.result .r-num small{font-size:20px;font-weight:900;letter-spacing:0}
+.result .r-sub{font-size:13px;line-height:1.55;font-weight:700;min-height:40px}
+.details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}
+.details div b{display:block;font-size:15px;line-height:1.2}
+.details div span{font-size:10.5px;color:var(--muted);font-weight:700;line-height:1.3;display:block;margin-top:2px}
+.details div+div{border-left:1px solid var(--line)}
+.actions{display:grid;grid-template-columns:1.2fr.8fr;gap:8px}
+.btn{border-radius:11px;border:0;cursor:pointer;font-weight:800;font-size:14px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:7px;min-height:50px}
+.btn-primary{background:var(--ink);color:var(--bg)}
+.btn-photo{background:var(--surface);color:var(--ink);border:1.5px solid var(--ink)}
+.btn:active{transform:scale(.98)}
+/* reverse */
+.reverse{font-size:13px}
+.reverse-row{display:flex;gap:8px;align-items:center}
+.reverse-row input{width:110px;height:44px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-weight:800;font-size:18px;background:var(--surface2)}
+.reverse-row p{margin:0;line-height:1.5;color:var(--muted);font-weight:600}
+.reverse-row p b{color:var(--ink)}
+/* OCR panel */
+.ocr{display:none}
+.ocr.open{display:block}
+.ocr img{width:100%;max-height:180px;object-fit:contain;background:#000;border-radius:8px;display:none}
+.ocr-status{font-size:13px;line-height:1.6;color:var(--muted);font-weight:600;margin:8px 0}
+.ocr-nums{display:flex;flex-wrap:wrap;gap:6px}
+.ocr-nums button{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--teal);background:var(--teal-bg);font-weight:900;cursor:pointer;color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);background:#111;color:#fff;padding:11px 16px;border-radius:999px;font-size:13px;font-weight:800;opacity:0;pointer-events:none;transition:.2s;z-index:20;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.note{font-size:11.5px;color:var(--muted);line-height:1.6;text-align:center;padding:0 8px}
+@media(max-height:700px){.result .r-num{font-size:52px}.qty-input input{font-size:28px}.wrap{gap:7px;padding-top:8px}}
+@media(max-width:380px){.result .r-num{font-size:52px}.result .r-num small{font-size:17px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top"><h1>📦 梱包計算</h1><span>内箱・外箱が一目でわかる</span></div>
+
+<!-- 生産数 -->
+<section class="card" aria-label="生産数">
+<div class="label"><span>生産数（作る個数）</span><b>例：5,000個</b></div>
+<div class="qty-row">
+<div class="qty-input"><input id="qty" type="text" inputmode="numeric" pattern="[0-9]*" value="5000" aria-label="生産数"><span>個</span></div>
+<button class="clear-btn" id="clearBtn" aria-label="クリア">×</button>
+</div>
+<div class="quick" id="quickQty">
+<button data-q="1000">1,000</button><button data-q="3000">3,000</button><button data-q="5000">5,000</button><button data-q="10000">10,000</button><button data-q="20000">20,000</button>
+</div>
+</section>
+
+<!-- 内箱 -->
+<section class="card" aria-label="内箱">
+<div class="label"><span>内箱（小箱）— 1箱に何個入る？</span><b>よく使うサイズ</b></div>
+<div class="chips" id="innerChips">
+<button class="chip active" data-v="6"><strong>6</strong><small>個入り</small></button>
+<button class="chip" data-v="12"><strong>12</strong><small>個入り</small></button>
+<button class="chip" data-v="24"><strong>24</strong><small>個入り</small></button>
+</div>
+<div class="custom-row"><span>ほかの入り数</span><input id="innerCustom" type="text" inputmode="numeric" placeholder="例：10"><span>個入り</span></div>
+</section>
+
+<!-- 外箱 -->
+<section class="card" aria-label="外箱">
+<div class="label"><span>外箱（ケース）— 1ケースに何個入る？</span><b>合計個数で選ぶ</b></div>
+<div class="chips" id="outerChips">
+<button class="chip chip-outer" data-v="48"><strong>48</strong><small>個入り</small></button>
+<button class="chip chip-outer" data-v="72"><strong>72</strong><small>個入り</small></button>
+<button class="chip chip-outer active" data-v="144"><strong>144</strong><small>個入り</small></button>
+<button class="chip chip-outer" data-v="288"><strong>288</strong><small>個入り</small></button>
+</div>
+<div class="custom-row"><span>ほかの入り数</span><input id="outerCustom" type="text" inputmode="numeric" placeholder="例：96"><span>個入り</span></div>
+</section>
+
+<div class="relation" id="relation">1外箱 ＝ 内箱 <b>12箱</b> 分</div>
+
+<!-- 結果：ここが一番大きく、スクロールなしで見える位置 -->
+<section class="results" aria-live="polite">
+<div class="result inner">
+<div class="r-label"><span>必要な内箱</span><em id="innerPerLabel">12個入り</em></div>
+<div class="r-num"><span id="innerCount">417</span><small> 箱</small></div>
+<div class="r-sub" id="innerSub">最後の1箱は 12個入り（満杯）</div>
+</div>
+<div class="result outer">
+<div class="r-label"><span>必要な外箱</span><em id="outerPerLabel">144個入り</em></div>
+<div class="r-num"><span id="outerCount">35</span><small> ケース</small></div>
+<div class="r-sub" id="outerSub">最後の1ケースは 内箱12箱入り</div>
+</div>
+</section>
+
+<div class="details">
+<div><b id="dLastInner">12個</b><span>最後の内箱<br>の中身</span></div>
+<div><b id="dLastOuter">12箱</b><span>最後の外箱<br>の内箱数</span></div>
+<div><b id="dCapacity">5,040個</b><span>外箱を全部<br>使った容量</span></div>
+</div>
+
+<div class="actions">
+<button class="btn btn-primary" id="copyBtn">✓ 結果をコピー（LINEに貼れる）</button>
+<button class="btn btn-photo" id="photoBtn">📷 写真で読む</button>
+<input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+</div>
+
+<!-- OCR -->
+<section class="card ocr" id="ocrPanel">
+<div class="label"><span>写真の読み取り結果</span><b>数字を確認してタップ</b></div>
+<img id="ocrImg" alt="読み取り中の写真">
+<p class="ocr-status" id="ocrStatus">指示書やメモの写真を選ぶと、数字を読み取ります。読み取った数字をタップすると生産数に入ります。必ず目で合っているか確認してください。</p>
+<div class="ocr-nums" id="ocrNums"></div>
+</section>
+
+<!-- 逆算 -->
+<section class="card reverse">
+<div class="label"><span>逆算 — 外箱から個数を出す</span></div>
+<div class="reverse-row">
+<input id="revOuter" type="text" inputmode="numeric" placeholder="35" aria-label="外箱数">
+<p>ケース用意すると <b id="revResult">最大 5,040個</b> 入ります<br><span style="font-size:12px">内箱は <b id="revInner">420箱</b> 必要です</span></p>
+</div>
+</section>
+
+<p class="note">計算方法：内箱数 ＝ 生産数 ÷ 内箱の入り数（切り上げ）／ 外箱数 ＝ 生産数 ÷ 外箱の入り数（切り上げ）。端数が出る場合は「最後の箱」が半端になります。<br>Safariの共有ボタン（四角に上矢印）→「ホーム画面に追加」で、「梱包計算」という名前と箱のアイコンで登録できます。</p>
+</div>
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+var qtyEl=document.getElementById('qty'), innerCustom=document.getElementById('innerCustom'), outerCustom=document.getElementById('outerCustom');
+var state={qty:5000, inner:6, outer:144};
+function parseNum(v){ if(!v) return 0; var n=parseInt(String(v).replace(/[^0-9]/g,''),10); return isNaN(n)?0:n;}
+function fmt(n){ return n.toLocaleString('ja-JP');}
+function setActive(containerId,val){ document.querySelectorAll('#'+containerId+' .chip').forEach(function(c){ c.classList.toggle('active', parseInt(c.dataset.v,10)===val);});}
+
+function calc(){
+var total=state.qty, ins=state.inner||1, outs=state.outer||1;
+var innerCount= total===0?0:Math.ceil(total/ins);
+var outerCount= total===0?0:Math.ceil(total/outs);
+var remInner= total===0?0:(total%ins===0?ins:total%ins);
+var piecesLastOuter= total===0?0:(total-(outerCount-1)*outs);
+var innerLastOuter= total===0?0:Math.ceil(piecesLastOuter/ins);
+var perOuter= outs/ins;
+var perOuterTxt= Number.isInteger(perOuter)? fmt(perOuter): (Math.round(perOuter*10)/10).toString();
+document.getElementById('innerCount').textContent=fmt(innerCount);
+document.getElementById('outerCount').textContent=fmt(outerCount);
+document.getElementById('innerPerLabel').textContent=fmt(ins)+'個入り';
+document.getElementById('outerPerLabel').textContent=fmt(outs)+'個入り';
+document.getElementById('relation').innerHTML='1外箱 ＝ 内箱 <b>'+perOuterTxt+'箱</b> 分　／　内箱1箱 ＝ '+fmt(ins)+'個';
+document.getElementById('innerSub').textContent= total===0?'生産数を入れてください':(remInner===ins?'最後の1箱も '+fmt(ins)+'個入り（満杯）':'最後の1箱は '+fmt(remInner)+'個入り（端数）');
+document.getElementById('outerSub').textContent= total===0?'—':('最後の1ケースは 内箱'+fmt(innerLastOuter)+'箱入り（'+fmt(piecesLastOuter)+'個）');
+document.getElementById('dLastInner').textContent= total===0?'—':fmt(remInner)+'個';
+document.getElementById('dLastOuter').textContent= total===0?'—':fmt(innerLastOuter)+'箱';
+document.getElementById('dCapacity').textContent= fmt(outerCount*outs)+'個';
+// reverse default sync if empty
+var rev=document.getElementById('revOuter');
+if(!rev.value) { /* keep placeholder */}
+calcReverse();
+return {innerCount:innerCount,outerCount:outerCount,remInner:remInner,innerLastOuter:innerLastOuter,piecesLastOuter:piecesLastOuter};
+}
+function calcReverse(){
+var n=parseNum(document.getElementById('revOuter').value);
+var use=n||parseNum(document.getElementById('revOuter').placeholder)||0;
+// if user hasn't typed, show based on current outerCount
+if(!n){ var cur=Math.ceil((state.qty||0)/(state.outer||1)); use=cur;}
+document.getElementById('revResult').textContent='最大 '+fmt(use*(state.outer||0))+'個';
+document.getElementById('revInner').textContent=fmt(Math.ceil(use*(state.outer||0)/(state.inner||1)))+'箱';
+}
+qtyEl.addEventListener('input',function(){ state.qty=parseNum(qtyEl.value); calc();});
+qtyEl.addEventListener('blur',function(){ if(state.qty) qtyEl.value=fmt(state.qty);});
+qtyEl.addEventListener('focus',function(){ if(state.qty) qtyEl.value=state.qty;});
+document.getElementById('clearBtn').addEventListener('click',function(){ qtyEl.value=''; state.qty=0; calc(); qtyEl.focus();});
+document.getElementById('quickQty').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return; state.qty=parseInt(b.dataset.q,10); qtyEl.value=fmt(state.qty); calc();});
+document.getElementById('innerChips').addEventListener('click',function(e){ var c=e.target.closest('.chip'); if(!c) return; state.inner=parseInt(c.dataset.v,10); innerCustom.value=''; setActive('innerChips',state.inner); calc();});
+document.getElementById('outerChips').addEventListener('click',function(e){ var c=e.target.closest('.chip'); if(!c) return; state.outer=parseInt(c.dataset.v,10); outerCustom.value=''; setActive('outerChips',state.outer); calc();});
+innerCustom.addEventListener('input',function(){ var v=parseNum(innerCustom.value); if(v>0){ state.inner=v; setActive('innerChips',-1); calc();}});
+outerCustom.addEventListener('input',function(){ var v=parseNum(outerCustom.value); if(v>0){ state.outer=v; setActive('outerChips',-1); calc();}});
+document.getElementById('revOuter').addEventListener('input',calcReverse);
+
+function showToast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show')},2200);}
+document.getElementById('copyBtn').addEventListener('click',function(){
+var r=calc();
+var text='\n生産数：'+fmt(state.qty)+'個\n内箱：'+fmt(state.inner)+'個入り × '+fmt(r.innerCount)+'箱'+(r.remInner!==state.inner?'（最後は'+fmt(r.remInner)+'個入り）':'（すべて満杯）')+'\n外箱：'+fmt(state.outer)+'個入り × '+fmt(r.outerCount)+'ケース（最後は内箱'+fmt(r.innerLastOuter)+'箱・'+fmt(r.piecesLastOuter)+'個）';
+if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){showToast('コピーしました — LINEに貼れます')}).catch(function(){fallbackCopy(text)});} else fallbackCopy(text);
+});
+function fallbackCopy(text){ var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); showToast('コピーしました');}catch(e){showToast('コピーできませんでした');} document.body.removeChild(ta);}
+
+// OCR
+var fileInput=document.getElementById('fileInput'), ocrPanel=document.getElementById('ocrPanel'), ocrImg=document.getElementById('ocrImg'), ocrStatus=document.getElementById('ocrStatus'), ocrNums=document.getElementById('ocrNums');
+document.getElementById('photoBtn').addEventListener('click',function(){ ocrPanel.classList.add('open'); fileInput.click();});
+fileInput.addEventListener('change',function(){
+var f=fileInput.files&&fileInput.files[0]; if(!f) return;
+ocrPanel.classList.add('open'); ocrNums.innerHTML='';
+var url=URL.createObjectURL(f); ocrImg.src=url; ocrImg.style.display='block';
+ocrStatus.textContent='読み取り中です…（少し時間がかかります）';
+if(typeof Tesseract==='undefined'){ ocrStatus.textContent='読み取り機能を読み込めませんでした。数字を手入力してください。'; return;}
+Tesseract.recognize(f,'eng').then(function(res){
+var txt=res.data.text||'';
+var matches=txt.match(/\d{1,3}(?:,\d{3})+|\d+/g)||[];
+var uniq=[]; matches.forEach(function(m){ var n=parseNum(m); if(n>=2 && n<=999999 && uniq.indexOf(n)===-1) uniq.push(n);});
+if(!uniq.length){ ocrStatus.textContent='数字が見つかりませんでした。明るい場所で、数字が大きく写るように撮り直してみてください。'; return;}
+ocrStatus.textContent='読み取った数字です。生産数だと思う数字をタップしてください（必ず目で確認を）。';
+uniq.slice(0,12).forEach(function(n){ var b=document.createElement('button'); b.textContent=fmt(n)+'個'; b.addEventListener('click',function(){ state.qty=n; qtyEl.value=fmt(n); calc(); showToast(fmt(n)+'個 を生産数に入れました'); window.scrollTo({top:0,behavior:'smooth'});}); ocrNums.appendChild(b);});
+}).catch(function(){ ocrStatus.textContent='読み取りに失敗しました。撮り直すか、手入力してください。';});
+});
+
+// init with the user's example check: default is 5000 / 12 / 144, also support 6-case via chips
+calc();
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "name": "こんぽうけいさんツール",
+  "short_name": "梱包計算",
+  "description": "生産数を入れる、必要な内箱数・外箱数がすぐ分かる梱包計算ツール",
+  "lang": "ja",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f2f4f3",
+  "theme_color": "#0b6b5e",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
